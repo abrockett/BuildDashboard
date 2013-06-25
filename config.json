@@ -1,0 +1,13 @@
+{
+    "name": "BuildDashboard",
+    "className": "Rally.apps.builddashboard.App",
+    "server": "https://test7cluster.rallydev.com",
+    "sdk": "2.0rc1",
+    "javascript": [
+        "Calculator.js",
+        "App.js"
+    ],
+    "css": [
+        "app.css"
+    ]
+}

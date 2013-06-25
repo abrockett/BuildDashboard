@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BuildDashboard</title>
+
+    <script type="text/javascript" src="/apps/2.0rc1/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+                Ext.define("Rally.apps.builddashboard.Calculator",{prepareChartData:function(store){var categories=[],successes=[],total=[],percent=[];store.each(function(record){Ext.Array.contains(categories,record.raw._CreatedAt)?"SUCCESS"===record.raw.Status?(successes[Ext.Array.indexOf(categories,record.raw._CreatedAt)]+=1,total[Ext.Array.indexOf(categories,record.raw._CreatedAt)]+=1):total[Ext.Array.indexOf(categories,record.raw._CreatedAt)]+=1:(Ext.Array.insert(categories,categories.length,[record.raw._CreatedAt]),"SUCCESS"===record.raw.Status?(Ext.Array.insert(successes,successes.length,[1]),Ext.Array.insert(total,total.length,[1])):(Ext.Array.insert(total,total.length,[1]),Ext.Array.insert(successes,successes.length,[0])))});var length=successes.length,xaxis=[],totalSuccesses=0,totalCount=0;Ext.Array.each(successes,function(name,index,array){Ext.Array.insert(percent,percent.length,[100*successes[index]/total[index]]),totalSuccesses+=successes[index]}),Ext.Array.each(total,function(name,index,array){totalCount+=total[index]});var successRatio=Ext.util.Format.number(100*(totalSuccesses/totalCount),"0.0");for(i=0;percent.length>i;i++)Ext.Array.insert(xaxis,xaxis.length,[i]);0===percent[0]&&(percent[0]=.01);var line=this._findLineByLeastSquares(xaxis,percent),lineData=line[0],lineSlope=line[1];return{categories:categories,ratio:successRatio,slope:lineSlope,series:[{type:"column",name:"Successful Build Percentage",data:percent,color:"#6AB17D"},{type:"line",data:lineData,marker:{enabled:!1}}]}},_findLineByLeastSquares:function(values_x,values_y){var sum_x=0,sum_y=0,sum_xy=0,sum_xx=0,count=0,x=0,y=0,values_length=values_x.length;if(values_length!=values_y.length)throw Error("The parameters values_x and values_y need to have same size!");if(0===values_length)return[[],[]];for(var v=0;values_length>v;v++)x=values_x[v],y=values_y[v],sum_x+=x,sum_y+=parseInt(y,10),sum_xx+=x*x,sum_xy+=x*y,count++;var m=(count*sum_xy-sum_x*sum_y)/(count*sum_xx-sum_x*sum_x),b=sum_y/count-m*sum_x/count,result_values_x=[],result_values_y=[];for(v=0;values_length>v;v++)x=values_x[v],y=x*m+b,result_values_x.push(x),result_values_y.push(y);var finalArray=[];for(i=0;result_values_x.length>i;i++)Ext.Array.insert(finalArray,finalArray.length,[[result_values_x[i],result_values_y[i]]]);return[finalArray,m]}});
+                Ext.define("Rally.apps.builddashboard.App",{extend:"Rally.app.App",requires:["Rally.apps.builddashboard.Calculator"],layout:"hbox",componentCls:"app",items:[{xtype:"container",itemId:"leftView",flex:1},{xtype:"container",itemId:"rightView",flex:1,layout:"vbox",items:[{xtype:"container",itemId:"topRightView",flex:1},{xtype:"container",itemId:"midRightView",height:450,flex:1},{xtype:"container",itemId:"bottomRightView",width:window.outerWidth/2-50,flex:1}]}],launch:function(){this.radioButtonPanel=this.down("#leftView").add({xtype:"form",width:400,itemId:"radioButtons",border:!1,componentCls:"radio-buttons",items:[{xtype:"fieldcontainer",defaultType:"radiofield",layout:"hbox",defaults:{flex:1,handler:this._radioButtonChanged,scope:this},items:[{boxLabel:"Last 30 days",name:"date",numberValue:30,id:"radio30",checked:!0},{boxLabel:"Last 90 days",name:"date",numberValue:90,id:"radio90"},{boxLabel:"Last 180 days",name:"date",numberValue:180,id:"radio180"}]}]}),this._onRadioButtonsLoaded()},_onRadioButtonsLoaded:function(){this._time=30,this.buildDefGrid=this.down("#leftView").add({xtype:"rallygrid",model:"BuildDefinition",componentCls:"build-definitions",itemId:"build-def-grid",columnCfgs:[{text:"Name",dataIndex:"Name",flex:2},{text:"Last Status",dataIndex:"LastStatus",flex:1},{text:"Total Success Ratio",flex:1,renderer:function(value,metaData,record){var buildSummary=record.get("Summary").Builds,number=buildSummary.Status.SUCCESS/buildSummary.Count,colortpl=new Ext.Template('<span class="{cls}">{number}%</span>'),colorclass;return void 0===buildSummary.Status.SUCCESS?(colorclass="lowsuccess",number=0):colorclass=.6>number?"lowsuccess":.75>number?"medsuccess":"highsuccess",colortpl.apply({number:Ext.util.Format.number(100*number,"0.0"),cls:colorclass})}}],sortableColumns:!1,listeners:{select:this._onCellSelected,scope:this},storeConfig:{listeners:{load:this._onBuildDefinitionsRetrieved,scope:this},fetch:["Name","LastStatus","LastBuild","Builds:summary[Status]"],filters:[{property:"LastBuild.CreationDate",operator:">",value:Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date,"day",-this._time))}],context:this.context.getDataContext(),pageSize:200}})},_onBuildDefinitionsRetrieved:function(store,records){var included=!1,index=0;for(i=0;this.buildDefGrid.store.totalCount>i;i++)if(this.buildDefGrid.store.data.items[i].get("Name")===this._selectedBuildDefName){included=!0,index=i;break}null===records||0===records.length?(this._selectedBuildDef="",this._selectedBuildDefName="No Build Definitions Loaded For Current Time Scale.",this._buildBuildsGrid(0),this._successRatio=null,this._updateDisplayField()):void 0!==this._selectedBuildDef&&included?this.buildDefGrid.getSelectionModel().select(index):(this._selectedBuildDef=records[0].get("_ref"),this._selectedBuildDefName=records[0].get("Name"),this.buildDefGrid.getSelectionModel().select(0))},_buildBuildsGrid:function(numberValue){if(this.buildsGrid){var today=new Date;this.buildsGrid.getStore().load({filters:[{property:"BuildDefinition",operator:"=",value:this._selectedBuildDef},{property:"CreationDate",operator:">",value:Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(today,"day",-numberValue))}]})}else this.buildsGrid=this.down("#bottomRightView").add({xtype:"rallygrid",model:"Build",componentCls:"builds",itemId:"builds-grid",columnCfgs:[{text:"Build #",dataIndex:"Number",flex:1},{text:"Date",dataIndex:"CreationDate",flex:2},{text:"Duration",dataIndex:"Duration",flex:1},{text:"Status",dataIndex:"Status",flex:1}],sortableColumns:!1,storeConfig:{filters:[{property:"BuildDefinition",operator:"=",value:this._selectedBuildDef},{property:"CreationDate",operator:">",value:Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date,"day",-numberValue))}],context:this.context.getDataContext(),pageSize:200,limit:1/0}});this._makeChart(numberValue)},_onCellSelected:function(me,record,index,eOpts){this._selectedBuildDef=record.get("_ref"),this._selectedBuildDefName=record.get("Name");var button;button=Ext.getCmp("radio30").checked===!0?Ext.getCmp("radio30"):Ext.getCmp("radio90").checked===!0?Ext.getCmp("radio90"):Ext.getCmp("radio180"),this._buildBuildsGrid(button.numberValue)},_updateDisplayField:function(){this.down("#displayclass")&&this.down("#topRightView").remove(this.down("#displayclass"));var ratioColorTemplate=new Ext.Template('<span class="{cls1}">{number}%</span>'),slopeColorTemplate=new Ext.Template('<span class="{cls2}">{slope}</span>'),ratioColorClass,slopeColorClass,successText,slopeTrend;ratioColorClass=60>this._successRatio?"lowsuccess":75>this._successRatio?"medsuccess":"highsuccess",null===this._successRatio?successText="<br>Click Another Button For More Data.":(successText='<br><span style="font-size: 10pt">Success Ratio = '+ratioColorTemplate.apply({number:this._successRatio,cls1:ratioColorClass}),successText+="<br>Trend For Selected Time Scale: ",this._trendLineSlope>0?(slopeColorClass="highsuccess",slopeTrend="Increasing"):0>this._trendLineSlope?(slopeColorClass="lowsuccess",slopeTrend="Decreasing"):(slopeColorClass="medsuccess",slopeTrend="No Detectable Change"),successText+=slopeColorTemplate.apply({slope:slopeTrend,cls2:slopeColorClass}),successText+="</span>"),this.down("#topRightView").add({xtype:"displayfield",value:'<span class="display-class">'+this._selectedBuildDefName+"</span>"+successText,itemId:"displayclass",componentCls:"display-name"})},_radioButtonChanged:function(button){if(this._time=Ext.getCmp("radio90").checked===!0?90:Ext.getCmp("radio180").checked===!0?180:30,button.checked){var today=new Date;this.buildDefGrid.getStore().load({filters:[{property:"LastBuild.CreationDate",operator:">",value:Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date,"day",-button.numberValue))}]})}},_makeChart:function(numberValue){var buttonValue=Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date,"day",-numberValue));void 0!==this.down("#midRightView").getComponent("buildsChart")&&this.down("#midRightView").remove(this.down("#midRightView").getComponent("buildsChart")),this.chart=this.down("#midRightView").add({xtype:"rallychart",itemId:"buildsChart",componentCls:"builds-chart",storeType:"Rally.data.WsapiDataStore",storeConfig:{model:"Build",filters:[{property:"BuildDefinition",operator:"=",value:this._selectedBuildDef},{property:"CreationDate",operator:">",value:buttonValue}],limit:1/0,context:this.context.getDataContext()},listeners:{chartRendered:this._onChartRendered,scope:this},calculatorType:"Rally.apps.builddashboard.Calculator",calculatorConfig:{},chartColors:[],queryErrorMessage:"",chartConfig:{chart:{type:"column"},title:{text:""},plotOptions:{column:{groupPadding:0,borderWidth:0}},xAxis:{labels:{formatter:function(){var size=this.chart.axes[0].categories.length,piece=Ext.util.Format.number(size/10,"0");for(i=0;size>i;i++){if("0"===piece)return this.value;0!==i%piece&&(this.chart.axes[0].categories[i]="")}return this.value}}},yAxis:{min:0,max:100,title:{text:"Percentage of Successful Builds"}},legend:{enabled:!1},tooltip:{enabled:!1}}})},_onChartRendered:function(chart){this._trendLineSlope=chart.chartData.slope,this._successRatio=chart.chartData.ratio,this._updateDisplayField()}});
+
+            Rally.launchApp('Rally.apps.builddashboard.App', {
+                name:"BuildDashboard",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+    <style type="text/css">
+        
+.lowsuccess {
+    color:#f47168;
+}
+
+.medsuccess {
+    color:#d9af4b;
+}
+
+.highsuccess {
+    color:#6ab17d;
+}
+
+.build-definitions {
+    margin-top: 30px;
+    margin-left: 50px;
+    margin-right: 25px;
+}
+
+.display-name {
+    margin-top: 30px;
+    margin-left: 25px;
+}
+
+
+/*.display-name div {
+    font-weight: bold;
+    font-size: 16px;
+}*/
+
+.display-class {
+    font-weight: bold;
+    font-size: 20px;
+}
+
+
+.radio-buttons {
+    margin-left: 70px;
+    margin-top: 30px;
+}
+
+.builds {
+    margin-bottom: 100px;
+    margin-left: 25px;
+    margin-top: 50px;
+}
+
+.builds-chart {
+    margin-top: 30px;
+    width: 700px;
+    margin-right: 30px;
+    margin-left: 25px;
+}
+    </style>
+</head>
+<body></body>
+</html>
