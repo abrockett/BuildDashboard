@@ -9,7 +9,21 @@ Ext.define('Rally.apps.builddashboard.App', {
         {
             xtype: 'container',
             itemId: 'leftView',
-            flex: 1
+            flex: 1,
+            layout: 'vbox',
+            items: [
+                {
+                    xtype: 'container',
+                    itemId: 'radioContainer',
+                    flex: 1
+                },
+                {
+                    xtype: 'container',
+                    itemId: 'bottomLeftView',
+                    width: (window.outerWidth / 2) - 50,
+                    flex: 1
+                }
+            ]
         },
         {
             xtype: 'container',
@@ -39,7 +53,18 @@ Ext.define('Rally.apps.builddashboard.App', {
     ],
 
     launch: function() {
-        this.radioButtonPanel = this.down('#leftView').add({
+        Rally.data.ModelFactory.getModels({
+            types: ['Build', 'BuildDefinition'],
+            success: function(models) {
+                this.models = models;
+                this._makePanel();
+            },
+            scope: this
+        });
+    },
+
+    _makePanel: function() {
+        this.radioButtonPanel = this.down('#radioContainer').add({
             xtype: 'form',
             width: 400,
             itemId: 'radioButtons',
@@ -74,7 +99,6 @@ Ext.define('Rally.apps.builddashboard.App', {
                             id        : 'radio180'
                         }
                     ]
-                    
                 } 
             ]
         });
@@ -82,14 +106,53 @@ Ext.define('Rally.apps.builddashboard.App', {
         this._onRadioButtonsLoaded();      
     },
 
-    // DO NOT SHOW THE PAGING TOOL BAR FOR EITHER GRID!!! IT WILL BREAK EVERYTHING :(
+    // DO NOT SHOW THE PAGING TOOL BAR FOR THE BUILDDEF GRID
     _onRadioButtonsLoaded: function() {
         this._time = 30;
-        this.buildDefGrid = this.down('#leftView').add({
-            xtype: 'rallygrid',
-            model: 'BuildDefinition',
-            componentCls: 'build-definitions',
+
+        var buildDefStoreConfig = this._getBuildDefStoreConfig({
+            model: this.models.BuildDefinition
+        });
+
+        this.down('#bottomLeftView').add(this._getBuildDefGridConfig({
             itemId: 'build-def-grid',
+            model: this.models.BuildDefinition,
+            storeConfig: buildDefStoreConfig
+        }));
+    },
+
+    _getBuildDefStoreConfig: function(config){
+        return Ext.apply({
+            listeners: {
+                load: this._onBuildDefinitionsRetrieved,
+                scope: this
+            },
+            fetch: [
+                'Name',
+                'LastStatus',
+                'LastBuild',
+                'Builds:summary[Status]'
+            ],
+            filters: this._getBuildDefFilters(),
+            context: this.context.getDataContext()
+        }, config);
+    },
+
+    _getBuildDefFilters: function() {
+        return [
+            {
+                property: 'LastBuild.CreationDate',
+                operator: '>',
+                value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
+                    'day', -this._time))
+            }
+        ];
+    },
+
+    _getBuildDefGridConfig: function(config) {
+        return Ext.apply({
+            xtype: 'rallygrid',
+            componentCls: 'build-definitions',
             columnCfgs: [
                 {text: 'Name', dataIndex: 'Name', flex: 2},
                 {text: 'Last Status', dataIndex: 'LastStatus', flex: 1},
@@ -114,45 +177,20 @@ Ext.define('Rally.apps.builddashboard.App', {
                 }}
             ],
             sortableColumns: false,
+            showPagingToolbar: false,
             listeners: {
                 select: this._onCellSelected,
                 scope: this
-            },
-            storeConfig: {
-                listeners: {
-                    load: this._onBuildDefinitionsRetrieved,
-                    scope: this
-                },
-                fetch: [
-                    'Name',
-                    'LastStatus',
-                    'LastBuild',
-                    'Builds:summary[Status]'
-                ],
-                filters: [
-                    {
-                        property: 'LastBuild.CreationDate',
-                        operator: '>',
-                        value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
-                            'day', -this._time))
-                    }
-                ],
-                context: this.context.getDataContext(),
-                pageSize: 200
             }
-            //showPagingToolbar: false
-        });
-
-
+        }, config);
     },
-
 
     _onBuildDefinitionsRetrieved: function(store, records) {
         var included = false;
         var index = 0;
-        
-        for (i=0; i<this.buildDefGrid.store.totalCount; i++) {
-            if (this.buildDefGrid.store.data.items[i].get('Name') === this._selectedBuildDefName) {
+
+        for (i=0; i < this.down('#build-def-grid').store.data.length; i++) {
+            if (this.down('#build-def-grid').store.data.items[i].get('Name') === this._selectedBuildDefName) {
                 included = true;
                 index = i;
                 break;
@@ -168,83 +206,67 @@ Ext.define('Rally.apps.builddashboard.App', {
         } else if (this._selectedBuildDef === undefined || !included) {
             this._selectedBuildDef = records[0].get('_ref');
             this._selectedBuildDefName = records[0].get('Name');
-            this.buildDefGrid.getSelectionModel().select(0);
+            this.down('#build-def-grid').getSelectionModel().select(0);
         } else {
-            this.buildDefGrid.getSelectionModel().select(index);
+            this.down('#build-def-grid').getSelectionModel().select(index);
         }
     },
 
-    _buildBuildsGrid: function(numberValue) {
-        if (this.buildsGrid) {
-            var today = new Date();
-            this.buildsGrid.getStore().load({
-                filters: [
-                    {
-                        property: 'BuildDefinition',
-                        operator: '=',
-                        value: this._selectedBuildDef
-                    },
-                    {
-                        property: 'CreationDate',
-                        operator: '>',
-                        value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(today, 
-                            'day', -(numberValue)))
-                    }
-                ]
-            });
-        } else {
-            this.buildsGrid = this.down('#bottomRightView').add({
-                xtype: 'rallygrid',
-                model: 'Build',
-                componentCls: 'builds',
-                itemId: 'builds-grid',
-                columnCfgs: [
-                    {text: 'Build #', dataIndex: 'Number', flex: 1},
-                    {text: 'Date', dataIndex: 'CreationDate', flex: 2},
-                    {text: 'Duration', dataIndex: 'Duration', flex: 1},
-                    {text: 'Status', dataIndex: 'Status', flex: 1}
-                ],
-                sortableColumns: false,
-                storeConfig: {
-                    filters: [
-                        {
-                            property: 'BuildDefinition',
-                            operator: '=',
-                            value: this._selectedBuildDef
-                        },
-                        {
-                            property: 'CreationDate',
-                            operator: '>',
-                            value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
-                                'day', -(numberValue)))
-                        }
-                    ],
-                    context: this.context.getDataContext(),
-                    pageSize: 200,
-                    limit: Infinity
-                }
-                //showPagingToolbar: false
-            });
-        }
+    _buildBuildsGrid: function() {
+        var buildsStoreConfig = this._getBuildsStoreConfig({
+            model: this.models.Build
+        });
 
-        this._makeChart(numberValue);
+        this.down('#bottomRightView').add(this._getBuildsGridConfig({
+            itemId: 'builds-grid',
+            model: this.models.Build,
+            storeConfig: buildsStoreConfig
+        }));
+
+        this._makeChart();
     },
 
-    _onCellSelected: function(me, record, index, eOpts) {
+    _getBuildsGridConfig: function(config) {
+        return Ext.apply({
+            xtype: 'rallygrid',
+            componentCls: 'builds',
+            columnCfgs: [
+                {text: 'Build #', dataIndex: 'Number', flex: 1},
+                {text: 'Date', dataIndex: 'CreationDate', flex: 2},
+                {text: 'Duration', dataIndex: 'Duration', flex: 1},
+                {text: 'Status', dataIndex: 'Status', flex: 1}
+            ]
+        }, config);
+    },
+
+    _getBuildsStoreConfig: function(storeConfig) {
+        return Ext.apply({
+            filters: this._getBuildsFilters(),
+            context: this.context.getDataContext()
+        }, storeConfig);
+    },
+
+    _getBuildsFilters: function() {
+        return [
+            {
+                property: 'BuildDefinition',
+                operator: '=',
+                value: this._selectedBuildDef
+            },
+            {
+                property: 'CreationDate',
+                operator: '>',
+                value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
+                    'day', -(this._time)))
+            }
+        ];
+    },
+
+    _onCellSelected: function(me, record) {
         this._selectedBuildDef = record.get('_ref');
         this._selectedBuildDefName = record.get('Name');
 
-
-        var button;
-        if (Ext.getCmp('radio30').checked === true) {
-            button = Ext.getCmp('radio30');
-        } else if (Ext.getCmp('radio90').checked === true) {
-            button = Ext.getCmp('radio90');
-        } else {
-            button = Ext.getCmp('radio180');
-        }
-
-        this._buildBuildsGrid(button.numberValue);
+        this._buildBuildsGrid();
 
     },
 
@@ -294,25 +316,18 @@ Ext.define('Rally.apps.builddashboard.App', {
         });
     },
 
-    _radioButtonChanged: function(button) {
-        if (Ext.getCmp('radio90').checked === true) {
-            this._time = 90;
-        } else if (Ext.getCmp('radio180').checked === true) {
-            this._time = 180;
-        } else {
-            this._time = 30;
-        }
-
+    _radioButtonChanged: function(button) {        
         if (button.checked) {
+            this._time = button.numberValue;
             var today = new Date();
 
-            this.buildDefGrid.getStore().load({
+            this.down('#build-def-grid').getStore().load({
                 filters: [
                     {
                         property: 'LastBuild.CreationDate',
                         operator: '>',
-                        value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
-                            'day', -(button.numberValue)))
+                        value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(today, 
+                            'day', -(this._time)))
                     }
                 ]
             });
@@ -320,9 +335,9 @@ Ext.define('Rally.apps.builddashboard.App', {
         }
     },
 
-    _makeChart: function(numberValue) {
+    _makeChart: function() {
         var buttonValue = Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
-                'day', -(numberValue)));
+                'day', -(this._time)));
     
         if(this.down('#midRightView').getComponent('buildsChart') !== undefined) {
             this.down('#midRightView').remove(this.down('#midRightView').getComponent('buildsChart'));

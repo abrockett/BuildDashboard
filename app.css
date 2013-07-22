@@ -14,7 +14,6 @@
 .build-definitions {
     margin-top: 30px;
     margin-left: 50px;
-    margin-right: 25px;
 }
 
 .display-name {
@@ -22,17 +21,10 @@
     margin-left: 25px;
 }
 
-
-/*.display-name div {
-    font-weight: bold;
-    font-size: 16px;
-}*/
-
 .display-class {
     font-weight: bold;
     font-size: 20px;
 }
-
 
 .radio-buttons {
     margin-left: 70px;
