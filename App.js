@@ -20,7 +20,7 @@ Ext.define('Rally.apps.builddashboard.App', {
                 {
                     xtype: 'container',
                     itemId: 'bottomLeftView',
-                    width: (window.outerWidth / 2) - 50,
+                    width: (window.outerWidth / 4)-30,
                     flex: 1
                 }
             ]
@@ -28,7 +28,7 @@ Ext.define('Rally.apps.builddashboard.App', {
         {
             xtype: 'container',
             itemId: 'rightView',
-            flex: 1,
+            flex: 3,
             layout: 'vbox',
             items: [
                 {
@@ -38,14 +38,14 @@ Ext.define('Rally.apps.builddashboard.App', {
                 },
                 {
                     xtype: 'container',
-                    itemId: 'midRightView',
+                    itemId: 'chart',
                     height: 450, //static height to avoid overlap
                     flex: 1
                 },
                 {
                     xtype: 'container',
                     itemId: 'bottomRightView',
-                    width: (window.outerWidth / 2)-50,
+                    width: 3*(window.outerWidth / 4)-50,
                     flex: 1
                 }
             ]
@@ -155,7 +155,7 @@ Ext.define('Rally.apps.builddashboard.App', {
             componentCls: 'build-definitions',
             columnCfgs: [
                 {text: 'Name', dataIndex: 'Name', flex: 2},
-                {text: 'Last Status', dataIndex: 'LastStatus', flex: 1},
+                {text: 'Last Build Status', dataIndex: 'LastStatus', flex: 1},
                 {text: 'Total Success Ratio', flex: 1, renderer: function(value, metaData, record) {
                     var buildSummary = record.get('Summary').Builds;
                     var number = buildSummary.Status.SUCCESS/buildSummary.Count;
@@ -338,13 +338,14 @@ Ext.define('Rally.apps.builddashboard.App', {
     _makeChart: function() {
         var buttonValue = Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
                 'day', -(this._time)));
-    
-        if(this.down('#midRightView').getComponent('buildsChart') !== undefined) {
-            this.down('#midRightView').remove(this.down('#midRightView').getComponent('buildsChart'));
+
+        if (this.down('#buildsChart')) {
+            this.down('#chart').remove(this.down('#buildsChart'));
         }
 
-        this.chart = this.down('#midRightView').add({
+        this.down('#chart').add({
             xtype: 'rallychart',
+            width: 3*(window.outerWidth / 4)-80,
             itemId: 'buildsChart',
             componentCls: 'builds-chart',
             storeType: 'Rally.data.WsapiDataStore',
@@ -374,7 +375,6 @@ Ext.define('Rally.apps.builddashboard.App', {
             calculatorConfig: {},
             chartColors: [],
             queryErrorMessage: '',
-            //queryErrorMessage: 'No Builds Found for the Selected Time Range',
             chartConfig: {
                 chart: {
                     type: 'column'
@@ -392,7 +392,7 @@ Ext.define('Rally.apps.builddashboard.App', {
                     labels: {
                         formatter: function() {
                             var size = this.chart.axes[0].categories.length;
-                            var piece = Ext.util.Format.number(size/10, '0');
+                            var piece = Ext.util.Format.number(size/25, '0');
                             for (i = 0; i < size; i++) {
                                 if (piece === '0') {
                                     return this.value;
