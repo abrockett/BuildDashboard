@@ -8,22 +8,19 @@ Ext.define("Rally.apps.builddashboard.Calculator", {
         var percent = [];
 
         store.each(function(record) {
-            if (!Ext.Array.contains(categories, record.raw._CreatedAt)) {
-                Ext.Array.insert(categories, categories.length, [record.raw._CreatedAt]);
-                if (record.raw.Status === 'SUCCESS') {
+            if (!Ext.Array.contains(categories, record.get('_CreatedAt'))) {
+                Ext.Array.insert(categories, categories.length, [record.get('_CreatedAt')]);
+                if (record.get('Status') === 'SUCCESS') {
                     Ext.Array.insert(successes, successes.length, [1]);
-                    Ext.Array.insert(total, total.length, [1]);
                 } else {
-                    Ext.Array.insert(total, total.length, [1]);
                     Ext.Array.insert(successes, successes.length, [0]);
-                } 
-            } else {
-                if (record.raw.Status === 'SUCCESS') {
-                    successes[Ext.Array.indexOf(categories, record.raw._CreatedAt)] += 1;
-                    total[Ext.Array.indexOf(categories, record.raw._CreatedAt)] += 1;
-                } else {
-                    total[Ext.Array.indexOf(categories, record.raw._CreatedAt)] += 1;
                 }
+                Ext.Array.insert(total, total.length, [1]);
+            } else {
+                if (record.get('Status') === 'SUCCESS') {
+                    successes[Ext.Array.indexOf(categories, record.get('_CreatedAt'))] += 1;
+                }
+                total[Ext.Array.indexOf(categories, record.get('_CreatedAt'))] += 1;
             }
         });
         
@@ -66,12 +63,11 @@ Ext.define("Rally.apps.builddashboard.Calculator", {
                     type: 'column',
                     name: 'Successful Build Percentage',
                     data: percent,
-                    color: '#6AB17D'
+                    color: '#5C9ACB'
                 },
                 {
                     type: 'line',
                     data: lineData,
-                    //data: this._findLineByLeastSquares(xaxis, percent),
                     marker: {
                         enabled: false
                     }

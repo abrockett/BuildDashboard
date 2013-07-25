@@ -4,7 +4,7 @@ Ext.define('Rally.apps.builddashboard.App', {
         'Rally.apps.builddashboard.Calculator'
     ],
     layout: 'hbox',
-    componentCls: 'app',
+    componentCls: 'builddashboard',
     items: [
         {
             xtype: 'container',
@@ -15,12 +15,13 @@ Ext.define('Rally.apps.builddashboard.App', {
                 {
                     xtype: 'container',
                     itemId: 'radioContainer',
+                    width: '100%',
                     flex: 1
                 },
                 {
                     xtype: 'container',
                     itemId: 'bottomLeftView',
-                    width: (window.outerWidth / 4)-30,
+                    width: '100%',
                     flex: 1
                 }
             ]
@@ -39,13 +40,14 @@ Ext.define('Rally.apps.builddashboard.App', {
                 {
                     xtype: 'container',
                     itemId: 'chart',
-                    height: 450, //static height to avoid overlap
+                    height: 400, //static height to avoid overlap
+                    width: '97%',
                     flex: 1
                 },
                 {
                     xtype: 'container',
                     itemId: 'bottomRightView',
-                    width: 3*(window.outerWidth / 4)-50,
+                    width: '97%',
                     flex: 1
                 }
             ]
@@ -66,7 +68,6 @@ Ext.define('Rally.apps.builddashboard.App', {
     _makePanel: function() {
         this.radioButtonPanel = this.down('#radioContainer').add({
             xtype: 'form',
-            width: 400,
             itemId: 'radioButtons',
             border: false,
             componentCls: 'radio-buttons',
@@ -127,12 +128,7 @@ Ext.define('Rally.apps.builddashboard.App', {
                 load: this._onBuildDefinitionsRetrieved,
                 scope: this
             },
-            fetch: [
-                'Name',
-                'LastStatus',
-                'LastBuild',
-                'Builds:summary[Status]'
-            ],
+            fetch: ['Name', 'LastStatus', 'LastBuild', 'Builds:summary[Status]'],
             filters: this._getBuildDefFilters(),
             context: this.context.getDataContext()
         }, config);
@@ -162,7 +158,7 @@ Ext.define('Rally.apps.builddashboard.App', {
                     var colortpl =  new Ext.Template('<span class="{cls}">{number}%</span>');
                     var colorclass;
 
-                    if (buildSummary.Status.SUCCESS === undefined) {
+                    if (!buildSummary.Status.SUCCESS) {
                         colorclass = 'lowsuccess';
                         number = 0;
                     } else if (number < 0.6) {
@@ -275,23 +271,22 @@ Ext.define('Rally.apps.builddashboard.App', {
             this.down('#topRightView').remove(this.down('#displayclass'));
         }
 
-        var ratioColorTemplate = new Ext.Template('<span class="{cls1}">{number}%</span>');
-        var slopeColorTemplate = new Ext.Template('<span class="{cls2}">{slope}</span>');
-        var ratioColorClass, slopeColorClass, successText, slopeTrend;
+        var displayFieldTemplate = new Ext.Template('<br><span style="font-size: 10pt">Success Ratio = ' +
+            '<span class="{numberclass}">{number}%</span><br>Trend For Selected Time Scale: ' +
+            '<span class="{slopeclass}">{slope}</span></span>');
 
-        if (this._successRatio < 60) {
-            ratioColorClass = 'lowsuccess';
-        } else if (this._successRatio < 75) {
-            ratioColorClass = 'medsuccess';
-        } else {
-            ratioColorClass = 'highsuccess';
-        }
+        var ratioColorClass, slopeColorClass, successText, slopeTrend;
 
         if (this._successRatio === null) {
             successText = '<br>Click Another Button For More Data.';
         } else {
-            successText = '<br><span style="font-size: 10pt">Success Ratio = ' + ratioColorTemplate.apply({number: this._successRatio, cls1: ratioColorClass});
-            successText += '<br>Trend For Selected Time Scale: ';
+            if (this._successRatio < 60) {
+                ratioColorClass = 'lowsuccess';
+            } else if (this._successRatio < 75) {
+                ratioColorClass = 'medsuccess';
+            } else {
+                ratioColorClass = 'highsuccess';
+            }
 
             if (this._trendLineSlope > 0) {
                 slopeColorClass = 'highsuccess';
@@ -304,8 +299,8 @@ Ext.define('Rally.apps.builddashboard.App', {
                 slopeTrend = 'No Detectable Change';
             }
 
-            successText += slopeColorTemplate.apply({slope: slopeTrend, cls2: slopeColorClass});
-            successText += "</span>";
+            successText = displayFieldTemplate.apply({number: this._successRatio, numberclass: ratioColorClass,
+                slope: slopeTrend, slopeclass: slopeColorClass});
         }
 
         this.down('#topRightView').add({
@@ -319,50 +314,27 @@ Ext.define('Rally.apps.builddashboard.App', {
     _radioButtonChanged: function(button) {        
         if (button.checked) {
             this._time = button.numberValue;
-            var today = new Date();
 
             this.down('#build-def-grid').getStore().load({
-                filters: [
-                    {
-                        property: 'LastBuild.CreationDate',
-                        operator: '>',
-                        value: Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(today, 
-                            'day', -(this._time)))
-                    }
-                ]
+                filters: this._getBuildDefFilters()
             });
-
         }
     },
 
     _makeChart: function() {
-        var buttonValue = Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 
-                'day', -(this._time)));
-
         if (this.down('#buildsChart')) {
             this.down('#chart').remove(this.down('#buildsChart'));
         }
 
         this.down('#chart').add({
             xtype: 'rallychart',
-            width: 3*(window.outerWidth / 4)-80,
+            width: '100%',
             itemId: 'buildsChart',
             componentCls: 'builds-chart',
             storeType: 'Rally.data.WsapiDataStore',
             storeConfig: {
                 model: 'Build',
-                filters: [
-                    {
-                        property: 'BuildDefinition',
-                        operator: '=',
-                        value: this._selectedBuildDef
-                    },
-                    {
-                        property: 'CreationDate',
-                        operator: '>',
-                        value: buttonValue
-                    }
-                ],
+                filters: this._getBuildsFilters(),
                 limit: Infinity,
                 context: this.context.getDataContext()
             },
