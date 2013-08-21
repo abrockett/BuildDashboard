@@ -1,7 +1,7 @@
 Ext.define("Rally.apps.builddashboard.Calculator", {
 
     prepareChartData: function (store) {
-
+        console.log('Preparing Chart Data');
         var categories = [];
         var successes = [];
         var total = [];
@@ -78,6 +78,7 @@ Ext.define("Rally.apps.builddashboard.Calculator", {
     },
 
     _findLineByLeastSquares: function(values_x, values_y) {
+        console.log('Least squares function');
         var sum_x = 0;
         var sum_y = 0;
         var sum_xy = 0;

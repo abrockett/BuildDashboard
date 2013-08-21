@@ -39,7 +39,7 @@ Ext.define('Rally.apps.builddashboard.App', {
                 },
                 {
                     xtype: 'container',
-                    itemId: 'chart',
+                    itemId: 'midRightView',
                     height: 400, //static height to avoid overlap
                     width: '97%',
                     flex: 1
@@ -55,6 +55,8 @@ Ext.define('Rally.apps.builddashboard.App', {
     ],
 
     launch: function() {
+        console.log('Launched app');
+        //this._selectedBuildDef = {};
         Rally.data.ModelFactory.getModels({
             types: ['Build', 'BuildDefinition'],
             success: function(models) {
@@ -66,6 +68,7 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _makePanel: function() {
+        console.log('Make radio button panel');
         this.radioButtonPanel = this.down('#radioContainer').add({
             xtype: 'form',
             itemId: 'radioButtons',
@@ -109,12 +112,13 @@ Ext.define('Rally.apps.builddashboard.App', {
 
     // DO NOT SHOW THE PAGING TOOL BAR FOR THE BUILDDEF GRID
     _onRadioButtonsLoaded: function() {
+        //debugger;
         this._time = 30;
 
         var buildDefStoreConfig = this._getBuildDefStoreConfig({
             model: this.models.BuildDefinition
         });
-
+        console.log('Tell build-def grid to be made');
         this.down('#bottomLeftView').add(this._getBuildDefGridConfig({
             itemId: 'build-def-grid',
             model: this.models.BuildDefinition,
@@ -123,6 +127,7 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _getBuildDefStoreConfig: function(config){
+        console.log('Get build-def store config');
         return Ext.apply({
             listeners: {
                 load: this._onBuildDefinitionsRetrieved,
@@ -135,6 +140,7 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _getBuildDefFilters: function() {
+        console.log('Get build-def filter');
         return [
             {
                 property: 'LastBuild.CreationDate',
@@ -146,13 +152,14 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _getBuildDefGridConfig: function(config) {
+        console.log('Create build-def grid');
         return Ext.apply({
             xtype: 'rallygrid',
             componentCls: 'build-definitions',
             columnCfgs: [
                 {text: 'Name', dataIndex: 'Name', flex: 2},
                 {text: 'Last Build Status', dataIndex: 'LastStatus', flex: 1},
-                {text: 'Total Success Ratio', flex: 1, renderer: function(value, metaData, record) {
+                {text: 'Success Ratio', flex: 1, renderer: function(value, metaData, record) {
                     var buildSummary = record.get('Summary').Builds;
                     var number = buildSummary.Status.SUCCESS/buildSummary.Count;
                     var colortpl =  new Ext.Template('<span class="{cls}">{number}%</span>');
@@ -182,11 +189,13 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _onBuildDefinitionsRetrieved: function(store, records) {
+        console.log('Selection Code, Tell app to update stuff');
         var included = false;
         var index = 0;
 
         for (i=0; i < this.down('#build-def-grid').store.data.length; i++) {
             if (this.down('#build-def-grid').store.data.items[i].get('Name') === this._selectedBuildDefName) {
+            //if (this.down('#build-def-grid').store.data.items[i].get('Name') === this._selectedBuildDef.Name) {
                 included = true;
                 index = i;
                 break;
@@ -196,12 +205,21 @@ Ext.define('Rally.apps.builddashboard.App', {
         if (records === null || records.length === 0) {
             this._selectedBuildDef = '';
             this._selectedBuildDefName = 'No Build Definitions Loaded For Current Time Scale.';
-            this._buildBuildsGrid(0);
+            //this._selectedBuildDef._ref = '';
+            //this._selectedBuildDef.Name = 'No Build Definitions Loaded For Current Time Scale.';
+            //this._selectedBuildDef = {_ref: '', Name: 'No Build Definitions Loaded For Current Time Scale.'};
+
+            this._buildBuildsGrid();
             this._successRatio = null;
             this._updateDisplayField();
-        } else if (this._selectedBuildDef === undefined || !included) {
+        } else if (!this._selectedBuildDef || !included) {
+        //} else if (!this._selectedBuildDef._ref || !included) {
             this._selectedBuildDef = records[0].get('_ref');
             this._selectedBuildDefName = records[0].get('Name');
+            //this._selectedBuildDef._ref = records[0].get('_ref');
+            //this._selectedBuildDef.Name = records[0].get('Name');
+            //this._selectedBuildDef = {_ref: records[0].get('_ref'), Name: records[0].get('Name')};
+
             this.down('#build-def-grid').getSelectionModel().select(0);
         } else {
             this.down('#build-def-grid').getSelectionModel().select(index);
@@ -212,7 +230,7 @@ Ext.define('Rally.apps.builddashboard.App', {
         var buildsStoreConfig = this._getBuildsStoreConfig({
             model: this.models.Build
         });
-
+        console.log('Tell builds grid to build');
         this.down('#bottomRightView').add(this._getBuildsGridConfig({
             itemId: 'builds-grid',
             model: this.models.Build,
@@ -223,6 +241,7 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _getBuildsGridConfig: function(config) {
+        console.log('Create builds grid');
         return Ext.apply({
             xtype: 'rallygrid',
             componentCls: 'builds',
@@ -236,18 +255,21 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _getBuildsStoreConfig: function(storeConfig) {
+        console.log('Get builds store config');
         return Ext.apply({
-            filters: this._getBuildsFilters(),
+            filters: this._getBuildsAndChartFilters(),
             context: this.context.getDataContext()
         }, storeConfig);
     },
 
-    _getBuildsFilters: function() {
+    _getBuildsAndChartFilters: function() {
+        console.log('Get builds / chart filters');
         return [
             {
                 property: 'BuildDefinition',
                 operator: '=',
                 value: this._selectedBuildDef
+                //value: this._selectedBuildDef._ref
             },
             {
                 property: 'CreationDate',
@@ -259,18 +281,20 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _onCellSelected: function(me, record) {
+        console.log('Cell selected');
         this._selectedBuildDef = record.get('_ref');
         this._selectedBuildDefName = record.get('Name');
+        //this._selectedBuildDef._ref = record.get('_ref');
+        //this._selectedBuildDef.Name = record.get('Name');
+
+        //this._selectedBuildDef = {_ref: record.get('_ref'), Name: record.get('Name')};
 
         this._buildBuildsGrid();
 
     },
 
     _updateDisplayField: function(){
-        if (this.down('#displayclass')) {
-            this.down('#topRightView').remove(this.down('#displayclass'));
-        }
-
+        console.log('Update Display Field');
         var displayFieldTemplate = new Ext.Template('<br><span style="font-size: 10pt">Success Ratio = ' +
             '<span class="{numberclass}">{number}%</span><br>Trend For Selected Time Scale: ' +
             '<span class="{slopeclass}">{slope}</span></span>');
@@ -303,15 +327,21 @@ Ext.define('Rally.apps.builddashboard.App', {
                 slope: slopeTrend, slopeclass: slopeColorClass});
         }
 
+        if (this.down('#displayclass')) {
+            this.down('#topRightView').remove(this.down('#displayclass'));
+        }
+
         this.down('#topRightView').add({
             xtype: 'displayfield',
             value: '<span class="display-class">'+this._selectedBuildDefName+'</span>' + successText,
+            //value: '<span class="display-class">'+this._selectedBuildDef.Name+'</span>' + successText,
             itemId: 'displayclass',
             componentCls: 'display-name'
         });
     },
 
-    _radioButtonChanged: function(button) {        
+    _radioButtonChanged: function(button) {
+        console.log('Radio button handler');
         if (button.checked) {
             this._time = button.numberValue;
 
@@ -322,11 +352,14 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _makeChart: function() {
+        console.log('Make chart');
+        //debugger;
         if (this.down('#buildsChart')) {
-            this.down('#chart').remove(this.down('#buildsChart'));
+            //this.down('#midRightView').remove(this.down('#buildsChart'), true);
+            this.remove(this.down('#buildsChart'));
         }
 
-        this.down('#chart').add({
+        this.down('#midRightView').add({
             xtype: 'rallychart',
             width: '100%',
             itemId: 'buildsChart',
@@ -334,19 +367,19 @@ Ext.define('Rally.apps.builddashboard.App', {
             storeType: 'Rally.data.WsapiDataStore',
             storeConfig: {
                 model: 'Build',
-                filters: this._getBuildsFilters(),
+                filters: this._getBuildsAndChartFilters(),
                 limit: Infinity,
                 context: this.context.getDataContext()
             },
             listeners: {
-                    chartRendered: this._onChartRendered,
-                    scope: this
+                chartRendered: this._onChartRendered,
+                scope: this
             },
 
             calculatorType: 'Rally.apps.builddashboard.Calculator',
             calculatorConfig: {},
             chartColors: [],
-            queryErrorMessage: '',
+            queryErrorMessage: 'error?',
             chartConfig: {
                 chart: {
                     type: 'column'
@@ -396,6 +429,7 @@ Ext.define('Rally.apps.builddashboard.App', {
     },
 
     _onChartRendered: function(chart) {
+        console.log('Chart renderer');
         this._trendLineSlope = chart.chartData.slope;
         this._successRatio = chart.chartData.ratio;
         this._updateDisplayField();
